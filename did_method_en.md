@@ -4,12 +4,39 @@
 
 The **finger** DID method is a Decentralized Identifier (DID) method implemented in the F-DID project. It is a DID server and client module written in Go, providing functionality for creating, registering, resolving, and revoking DID documents.
 
-## 2. DID Method Name
+## 2. Purpose and Use Cases
+
+### Purpose
+
+The finger DID method is defined for the following purposes:
+
+- **Standards-Compliant DID Provision:** Provides a practical DID method that conforms to W3C DID Core and DID Resolution standards.
+- **Central DB-Based VDR:** The reference implementation of this specification uses a centralized database-based Verifiable Data Registry (VDR). It supports predictable costs and simple deployment in enterprise and financial environments. The design may be extended to other VDRs (e.g., distributed ledger) in the future; this is non-normative.
+- **Cryptographic Signature-Based Integrity:** DID document authenticity can be independently verified through cryptographic signatures in the `proof` field, regardless of the VDR operator.
+- **F-DID Ecosystem Integration:** Builds digital identity infrastructure integrated with Finger Co., Ltd.'s F-DID solution and financial/blockchain platforms.
+- **B2B DID Infrastructure Provision:** The goal is to provide managed DID services (DID-as-a-Service) to enterprises, financial institutions, and public agencies that have difficulty building and operating DIDs on their own. F-DID is a commercial solution developed by Finger Co., Ltd. based on this DID method and is offered to the B2B market.
+
+### Use Cases
+
+- **B2B Managed DID Service:** Provides DID infrastructure as a SaaS offering to enterprises, financial institutions, and public agencies. Clients can use the DID lifecycle (create, register, resolve, revoke) through F-DID without building or operating DIDs themselves.
+- **Enterprise and Financial Identity Management:** Issuance and verification of digital identifiers for users, systems, and services of financial institutions and fintech companies.
+- **Blockchain Integration:** Integration with blockchain-based services such as smart contracts, tokenized securities (STO), and NFTs through the `service` endpoint in DID documents.
+- **Self-Sovereign Identity (SSI):** Scenarios where individuals and organizations safely present and verify their identity information together with Verifiable Credentials.
+- **API-Based Identity Authentication:** Integration of DID-based authentication into existing financial and public systems through REST API for DID registration, lookup, and revocation.
+
+### Target Users
+
+- Financial institutions and fintech companies
+- Blockchain-based service providers
+- Organizations building enterprise digital identity and authentication systems
+- Public and private SSI and Verifiable Credential services
+
+## 3. DID Method Name
 
 The registered method name is `finger`.
 A valid DID starts with: `did:finger:`
 
-## 3. DID Syntax
+## 4. DID Syntax
 
 A `did:finger` DID follows this grammar:
 
@@ -55,7 +82,7 @@ The method-specific identifier is a Base64-encoded UUID string.
 did:finger:ZDNlNGJkZDktYWRhYy00YTgzLWJhMzctMGY2N2Y2OTQ2ZmQy
 ```
 
-## 4. Method Operations
+## 5. Method Operations
 
 The finger DID method supports the following operations:
 
@@ -192,7 +219,7 @@ This operation revokes a DID document so it can no longer be used.
 
 **All operations are protected through API Key-based authentication.**
 
-## 5. DID Document Structure
+## 6. DID Document Structure
 
 The finger DID method conforms to the W3C DID Core specification and has the following structure:
 
@@ -236,7 +263,7 @@ The finger DID method conforms to the W3C DID Core specification and has the fol
 }
 ```
 
-## 6. Supported Cryptographic Algorithms
+## 7. Supported Cryptographic Algorithms
 
 The finger DID method supports the following cryptographic algorithms:
 
@@ -247,7 +274,7 @@ The finger DID method supports the following cryptographic algorithms:
 - **RSA 2048** (`RsaVerificationKey2018`)
 - **RSA 4096** (`RsaVerificationKey2018`)
 
-## 7. DID Resolution
+## 8. DID Resolution
 
 The finger DID method conforms to the W3C DID Resolution standard.
 
@@ -290,7 +317,7 @@ Errors are returned in the following cases:
 - **404 notFound:** DID document not found (revoked or does not exist)
 - **500 Internal Server Error:** Server internal error
 
-## 8. DID Document
+## 9. DID Document
 
 The returned DID Document conforms to DID Core:
 
@@ -301,15 +328,15 @@ The returned DID Document conforms to DID Core:
 - **service:** Service endpoints (optional)
 - **proof:** Signature of the DID document (optional)
 
-## 9. DID Document Management
+## 10. DID Document Management
 
 The finger DID method provides functionality for registering, querying, and revoking DID documents. All management operations are protected through API Key-based authentication, and DID documents are stored and managed in a database.
 
-## 10. Verifiable Data Registry (VDR) and Trust Model
+## 11. Verifiable Data Registry (VDR) and Trust Model
 
 ### VDR Architecture
 
-The finger DID method uses a centralized Verifiable Data Registry (VDR) managed by the F-DID service operator. The VDR stores DID documents and manages their lifecycle (Active/Revoked states).
+The finger DID method uses a centralized Verifiable Data Registry (VDR, database) managed by the F-DID service operator. The VDR stores DID documents and manages their lifecycle (Active/Revoked states). This specification is defined on the premise of a central DB-based VDR. The design may be extended to other VDRs (e.g., distributed ledger) in the future; this is non-normative.
 
 **Resolution Model:**
 - DID resolution is performed through a public HTTP endpoint (`GET /1.0/identifiers/{did}`)
@@ -345,17 +372,17 @@ The finger DID method uses a centralized Verifiable Data Registry (VDR) managed 
 - API Key management follows security best practices
 - Service status and maintenance windows are communicated to users
 
-## 11. Blockchain Integration
+## 12. Blockchain Integration
 
 The finger DID method can optionally integrate with blockchains for additional verification and registry capabilities.
 
-## 12. Governance
+## 13. Governance
 
 - **Authority:** F-DID Project Team
 - **DID Acquisition Process:** DID creation and registration available through API Key authentication
 - **Maintenance:** Continuously managed and improved by the F-DID project
 
-## 13. Privacy & Security Considerations
+## 14. Privacy & Security Considerations
 
 ### Public Key and Private Key Handling
 
@@ -535,7 +562,7 @@ The finger DID method can optionally integrate with blockchains for additional v
 - Use Verifiable Credentials to manage sensitive information
 - Clearly inform users about the public nature of DIDs
 
-## 14. Implementation Information
+## 15. Implementation Information
 
 The finger DID method is implemented in the Go programming language. This section provides information for developers who wish to implement DID Resolvers or other software that interacts with the `did:finger` method.
 
@@ -731,11 +758,14 @@ Third-party developers can implement support for the `did:finger` method by:
 For questions about implementing support for the `did:finger` method, please contact:
 
 - **Email:** youngseoka@finger.co.kr
-- **Organization:** Finger, Technology Research Institute
+- **Organization:** Finger Co., Ltd., Technology Research Institute
+- **Website:** https://www.finger.co.kr/homepage/html/main/main-01-01.html?cate=main&sub=01&page=01
+
+**Organization Overview:** Finger Co., Ltd. is a B2C fintech company in Korea providing smart financial platforms and blockchain-based digital asset and identity services. This DID method specification is authored and maintained by the Technology Research Institute of Finger Co., Ltd. F-DID is a DID solution developed and operated by Finger.
 
 The specification document and API endpoints described herein provide all information necessary for independent implementation of DID Resolvers and related software.
 
-## 15. References
+## 16. References
 
 ### Standards
 
@@ -743,12 +773,15 @@ The specification document and API endpoints described herein provide all inform
 - [W3C DID Resolution](https://www.w3.org/TR/did-resolution/)
 - [W3C DID Implementation Guide](https://www.w3.org/TR/did-imp-guide/)
 
-## 16. Contact Information
+## 17. Contact Information
 
 - **Email:** youngseoka@finger.co.kr
-- **Organization:** Finger, Technology Research Institute
+- **Organization:** Finger Co., Ltd., Technology Research Institute
+- **Website:** https://www.finger.co.kr/homepage/html/main/main-01-01.html?cate=main&sub=01&page=01
 
-## 17. Lifecycle
+Finger Co., Ltd. is a B2C fintech company in Korea. This DID method specification is authored and maintained by the Technology Research Institute of Finger. F-DID is a DID solution developed and operated by Finger.
+
+## 18. Lifecycle
 
 ### Versioning
 
@@ -766,7 +799,7 @@ The specification document and API endpoints described herein provide all inform
 - Issues and Pull Requests are tracked in the project repository
 - Major changes are announced to the community
 
-## 18. Test Vectors
+## 19. Test Vectors
 
 The following are examples of valid `did:finger` DIDs:
 
@@ -787,12 +820,12 @@ did:finger:OTliNWZjNmItYjcxOC00YzNkLWE4NGUtNTA4MDlmNzljM2Y1
 
 Each DID should resolve to a valid DID Document.
 
-## 19. W3C Registration
+## 20. W3C Registration
 
 This method is being prepared for registration in the W3C DID Method Registry.
 
 **Status:** Registration Pending
 
-## 20. Status
+## 21. Status
 
 This DID method is currently **under development** and being prepared for registration in the W3C DID Extensions registry.

@@ -4,6 +4,33 @@
 
 **finger** DID 메서드는 F-DID 프로젝트에서 구현된 분산 식별자(DID) 메서드입니다. Go 언어로 작성된 DID 서버 및 클라이언트 모듈로, DID 문서 생성, 등록, 해석, 폐기 기능을 제공합니다.
 
+## 목적 및 사용 사례 (Purpose and Use Cases)
+
+### 목적 (Purpose)
+
+finger DID 메서드는 다음 목적으로 정의되었습니다:
+
+- **표준 준수형 DID 제공:** W3C DID Core 및 DID Resolution 표준을 준수하는 실용적인 DID 메서드를 제공합니다.
+- **중앙 DB 기반 VDR:** 본 스펙의 참조 구현은 중앙화된 데이터베이스 기반 Verifiable Data Registry(VDR)를 사용합니다. 기업·금융 환경에서 예측 가능한 비용과 단순한 배포를 지원합니다. 향후 다른 VDR(예: 분산원장)로 확장 가능하도록 설계될 수 있으나, 이는 비규범적(non-normative)입니다.
+- **암호화 서명 기반 무결성:** DID 문서의 `proof` 필드에 포함된 암호화 서명으로, VDR 운영자와 무관하게 문서의 진위성을 독립적으로 검증할 수 있습니다.
+- **F-DID 생태계 연동:** 주식회사 핑거의 F-DID 솔루션 및 금융·블록체인 플랫폼과 통합된 디지털 신원 인프라를 구축합니다.
+- **B2B DID 인프라 제공:** DID를 직접 구축·운영하기 어려운 기업·금융기관·공공기관에 관리형 DID 서비스(DID-as-a-Service)를 제공하는 것이 목표입니다. F-DID는 주식회사 핑거가 본 DID 메서드를 기반으로 개발한 상용 솔루션으로, B2B 시장에 제공됩니다.
+
+### 사용 사례 (Use Cases)
+
+- **B2B 관리형 DID 서비스:** 기업·금융기관·공공기관에 DID 인프라를 SaaS 형태로 제공. 클라이언트는 DID를 직접 구축·운영하지 않고 F-DID를 통해 DID 생명주기(생성·등록·해석·폐기)를 이용합니다.
+- **기업·금융 신원 관리:** 금융기관, 핀테크 기업의 사용자·시스템·서비스에 대한 디지털 식별자 발급 및 검증
+- **블록체인 연동:** DID 문서의 `service` 엔드포인트를 통해 스마트 컨트랙트, 토큰증권(STO), NFT 등 블록체인 기반 서비스와 연동
+- **자가주권형 신원(SSI):** Verifiable Credential과 함께 개인·조직이 자신의 신원 정보를 안전하게 제시하고 검증하는 시나리오
+- **API 기반 신원 인증:** REST API를 통한 DID 등록·조회·폐기로, 기존 금융·공공 시스템에 DID 기반 인증을 통합
+
+### 대상 사용자 (Target Users)
+
+- 금융기관 및 핀테크 사업자
+- 블록체인 기반 서비스 제공자
+- 기업용 디지털 신원·인증 시스템 구축 기관
+- 공공·민간 SSI 및 Verifiable Credential 활용 서비스
+
 ## DID Method Name
 
 등록된 메서드 이름은 `finger`입니다.
@@ -309,7 +336,7 @@ finger DID 메서드는 DID 문서의 등록, 조회, 폐기 기능을 제공합
 
 ### VDR 아키텍처
 
-finger DID 메서드는 F-DID 서비스 운영자가 관리하는 중앙화된 Verifiable Data Registry (VDR)를 사용합니다. VDR은 DID 문서를 저장하고 라이프사이클(Active/Revoked 상태)을 관리합니다.
+finger DID 메서드는 F-DID 서비스 운영자가 관리하는 중앙화된 Verifiable Data Registry(VDR, 데이터베이스)를 사용합니다. VDR은 DID 문서를 저장하고 라이프사이클(Active/Revoked 상태)을 관리합니다. 본 스펙은 현재 중앙 DB 기반 VDR을 전제로 정의되어 있으며, 향후 다른 VDR(예: 분산원장)로 확장 가능하도록 설계될 수 있으나, 이는 비규범적(non-normative)입니다.
 
 **해석 모델:**
 - DID 해석은 공개 HTTP 엔드포인트(`GET /1.0/identifiers/{did}`)를 통해 수행됩니다
@@ -731,7 +758,10 @@ finger DID 메서드는 Go로 구현되었으며 다음을 제공합니다:
 `did:finger` 메서드 지원 구현에 대한 문의사항은 다음으로 연락하세요:
 
 - **이메일:** youngseoka@finger.co.kr
-- **조직:** Finger, Technology Research Institute
+- **조직:** 주식회사 핑거, 기술연구소 (Finger, Technology Research Institute)
+- **웹사이트:** https://www.finger.co.kr/homepage/html/main/main-01-01.html?cate=main&sub=01&page=01
+
+**조직 소개:** 주식회사 핑거는 국내 B2C 핀테크 전문기업으로, 스마트 금융 플랫폼 및 블록체인 기반 디지털 자산·신원 서비스를 제공합니다. 본 DID 메서드 스펙은 주식회사 핑거의 기술연구소(Technology Research Institute)에서 작성·유지보수하며, F-DID는 핑거가 개발·운영하는 DID 솔루션입니다.
 
 본 스펙 문서와 여기서 설명하는 API 엔드포인트는 DID Resolver 및 관련 소프트웨어의 독립적인 구현에 필요한 모든 정보를 제공합니다.
 
@@ -747,7 +777,10 @@ finger DID 메서드는 Go로 구현되었으며 다음을 제공합니다:
 ## 연락처 정보
 
 - **이메일:** youngseoka@finger.co.kr
-- **조직:** Finger, Technology Research Institute
+- **조직:** 주식회사 핑거, 기술연구소 (Finger, Technology Research Institute)
+- **웹사이트:** https://www.finger.co.kr/homepage/html/main/main-01-01.html?cate=main&sub=01&page=01
+
+주식회사 핑거는 국내 B2C 핀테크 전문기업이며, 본 DID 메서드 스펙은 핑거의 기술연구소에서 작성·유지보수합니다. F-DID는 핑거가 개발·운영하는 DID 솔루션입니다.
 
 ## Lifecycle
 
