@@ -11,7 +11,7 @@
 finger DID 메서드는 다음 목적으로 정의되었습니다:
 
 - **표준 준수형 DID 제공:** W3C DID Core 및 DID Resolution 표준을 준수하는 실용적인 DID 메서드를 제공합니다.
-- **중앙 DB 기반 VDR:** 본 스펙의 참조 구현은 중앙화된 데이터베이스 기반 Verifiable Data Registry(VDR)를 사용합니다. 기업·금융 환경에서 예측 가능한 비용과 단순한 배포를 지원합니다. 향후 다른 VDR(예: 분산원장)로 확장 가능하도록 설계될 수 있으나, 이는 비규범적(non-normative)입니다.
+- **하이브리드 VDR (블록체인 + IPFS + DB):** 본 스펙의 참조 구현은 하이브리드 Verifiable Data Registry(VDR)를 사용합니다: DID 문서 본문은 IPFS(콘텐츠 주소 지정 저장소)에 저장되고, 그 결과로 산출된 콘텐츠 식별자(CID)는 이더리움 호환 스마트 컨트랙트에 앵커링되어 변조 감지가 가능하며, 운영자가 관리하는 데이터베이스가 발급·상태 추적을 지원합니다. 기업·금융 환경에서 예측 가능한 비용과 단순한 배포를 지원하는 동시에, 온체인 앵커를 통해 암호학적 변조 감지 기능을 더합니다. 향후 다른 레지스트리로 확장 가능하도록 설계될 수 있으나, 이는 비규범적(non-normative)입니다.
 - **암호화 서명 기반 무결성:** DID 문서의 `proof` 필드에 포함된 암호화 서명으로, VDR 운영자와 무관하게 문서의 진위성을 독립적으로 검증할 수 있습니다.
 - **F-DID 생태계 연동:** 주식회사 핑거의 F-DID 솔루션 및 금융·블록체인 플랫폼과 통합된 디지털 신원 인프라를 구축합니다.
 - **B2B DID 인프라 제공:** DID를 직접 구축·운영하기 어려운 기업·금융기관·공공기관에 관리형 DID 서비스(DID-as-a-Service)를 제공하는 것이 목표입니다. F-DID는 주식회사 핑거가 본 DID 메서드를 기반으로 개발한 상용 솔루션으로, B2B 시장에 제공됩니다.
@@ -47,39 +47,39 @@ did:finger:<method-specific-identifier>
 
 **정규식 (Regex):**
 ```
-^did:finger:[A-Za-z0-9+/=]+$
+^did:finger:[A-Za-z0-9_-]+$
 ```
 
 **ABNF:**
 ```
 did-finger    = "did:finger:" method-specific-id
-method-specific-id = 1*( ALPHA / DIGIT / "+" / "/" / "=" )
+method-specific-id = 1*( ALPHA / DIGIT / "-" / "_" )
 ALPHA         = %x41-5A / %x61-7A   ; A-Z, a-z
 DIGIT         = %x30-39              ; 0-9
 ```
 
 ### Method-Specific Identifier
 
-Method-specific identifier는 Base64로 인코딩된 UUID 문자열입니다.
+Method-specific identifier는 Base64url로 인코딩(패딩 없음)된 UUID 문자열입니다.
 
 **생성 과정:**
 
-1. UUID v4를 생성합니다 (예: `3d3e4bdd-9adac-04a83-ba37-0f67f69462fd2`)
+1. UUID v4를 생성합니다 (예: `5554e07d-6128-4804-a15f-99a4d5579479`)
 2. UUID 문자열을 바이트 배열로 변환합니다
-3. Base64 표준 인코딩(StdEncoding)을 사용하여 인코딩합니다
+3. Base64url 인코딩(패딩 없음, `base64.RawURLEncoding`, RFC 4648 §5)을 사용하여 인코딩합니다
 4. 결과 문자열이 method-specific identifier가 됩니다
 
 **규칙:**
-- **문자셋:** Base64 표준 문자셋 (A-Z, a-z, 0-9, +, /, =)
-- **길이:** 약 44-48자 (UUID를 Base64 인코딩한 결과)
+- **문자셋:** Base64url 문자셋 (RFC 4648 §5: A-Z, a-z, 0-9, -, _), 패딩 없음
+- **길이:** 약 48자 (36자 UUID 문자열을 패딩 없이 Base64url 인코딩한 결과)
 - **충돌 관리:** UUID v4의 고유성에 의해 보장됨
-- **대소문자 구분:** Base64 인코딩 결과이므로 대소문자를 구분함
+- **대소문자 구분:** Base64url 인코딩 결과이므로 대소문자를 구분함
 
-**참고:** 이 스펙은 표준 Base64 인코딩(RFC 4648)을 사용하며, `+`, `/`, `=` 패딩 문자를 포함합니다. 구현자는 URL 경로에서 DID를 전송할 때 라우팅 문제를 방지하기 위해 적절한 URL 인코딩을 보장해야 합니다.
+**참고:** 이 스펙은 Base64url 인코딩(RFC 4648 §5, Go의 `base64.RawURLEncoding`)을 사용하며 `=` 패딩이 없습니다. 문자셋(`A-Z`, `a-z`, `0-9`, `-`, `_`)이 이미 URL-safe 하므로, URL 경로에서 DID를 전송할 때 별도의 퍼센트 인코딩이 필요하지 않습니다.
 
 **예시:**
 ```
-did:finger:ZDNlNGJkZDktYWRhYy00YTgzLWJhMzctMGY2N2Y2OTQ2ZmQy
+did:finger:NTU1NGUwN2QtNjEyOC00ODA0LWExNWYtOTlhNGQ1NTc5NDc5
 ```
 
 ## Method Operations
@@ -92,24 +92,22 @@ finger DID 메서드는 다음 작업을 지원합니다:
 
 **DID 생성 과정:**
 
-1. 암호화 알고리즘을 선택합니다 (예: P256, P384, P521, Secp256k1, RSA2048, RSA4096)
+1. 암호화 알고리즘을 선택합니다 (현재 EC P-256; §7 참조)
 2. 선택한 알고리즘으로 키 쌍(개인 키/공개 키)을 생성합니다
-3. UUID v4를 생성하고 Base64로 인코딩하여 method-specific identifier를 만듭니다
+3. UUID v4를 생성하고 Base64url(패딩 없음)로 인코딩하여 method-specific identifier를 만듭니다
 4. `did:finger:<method-specific-identifier>` 형식의 DID를 생성합니다
 5. 생성된 키 쌍과 함께 DID 객체를 구성합니다
 
 **DID 문서 생성 및 등록:**
 
 1. 생성된 DID를 사용하여 DID 문서를 생성합니다
-   - `@context`, `id`, `verificationMethod`, `authentication` 필드를 포함
-   - 선택적으로 `name`, `desc`, `service`, `proof` 필드를 포함할 수 있습니다
-2. DID 문서를 JSON으로 직렬화합니다
-3. DID 문서를 생성한 DID의 개인 키로 서명합니다
-   - 서명 알고리즘은 verificationMethod에 명시된 타입과 일치해야 합니다
-   - 서명에는 nonce와 타임스탬프가 포함됩니다
-4. 서명된 DID 문서를 Base64로 인코딩합니다
-5. 등록 API를 통해 데이터베이스에 저장합니다:
-   - **엔드포인트:** `POST /api/v2/did/registDIDDocument`
+   - `@context`, `id`, `verificationMethod`, `authentication`, `assertionMethod` 필드를 포함
+   - 선택적으로 `service` 필드를 포함할 수 있습니다
+2. `proof` 필드를 제외한 DID 문서를 JCS(JSON Canonicalization Scheme, RFC 8785)로 정규화합니다
+3. 정규화된 바이트를 DID 문서를 생성한 DID의 개인 키로 서명합니다. `ecdsa-jcs-2019` cryptosuite(ECDSA P-256)를 사용하며, 서명 키를 `verificationMethod`로 참조하는 `DataIntegrityProof` 객체를 구성합니다
+4. `proof` 객체를 DID 문서에 추가하고, 결과 JSON 문서를 API 전송을 위해 Base64로 인코딩합니다
+5. 등록 API를 통해 등록합니다 (운영자는 문서를 IPFS에 저장하고 CID를 온체인에 앵커링하며, 데이터베이스에 상태를 기록합니다 — §11 참조):
+   - **엔드포인트:** `POST /api/v3/did/registDIDDocument`
    - **인증:** API Key 헤더 (`X-API-Key`) 필요
    - **요청 본문:**
      ```json
@@ -127,7 +125,7 @@ Go 클라이언트 라이브러리를 사용하여 DID를 생성할 수 있습�
 
 ```go
 // DID 생성
-didBase64, err := did.CreateDid(keytype)  // keytype: "P256", "P384", etc.
+didBase64, err := did.CreateDid(keytype)  // keytype: "P256" (현재 지원 곡선)
 
 // DID 문서 생성
 docBase64, err := did.CreateDidDocument(didBase64, nameBase64, descBase64)
@@ -145,9 +143,10 @@ DID를 해석하여 DID 문서를 조회하는 작업입니다.
    - 모든 consumer의 DID를 검색합니다
 3. 처리 과정:
    - DID에서 `did:finger:` 접두사를 제거하여 method-specific identifier를 추출합니다
-   - 데이터베이스에서 해당 identifier를 가진 Active 상태의 DID 문서를 검색합니다
-   - DID 문서가 존재하면 W3C DID Resolution Result 형식으로 반환합니다
-   - DID 문서가 없거나 폐기된 경우 `404 notFound` 오류를 반환합니다
+   - 해당 identifier에 대해 온체인에 앵커링된 CID를 조회하고, IPFS에서 대응하는 DID 문서를 가져옵니다 (§11 참조)
+   - 운영자 데이터베이스를 통해 DID의 상태(Active/Revoked)를 교차 확인합니다
+   - DID 문서가 존재하고 Active 상태이면 W3C DID Resolution Result 형식으로 반환합니다
+   - DID 문서가 없거나 폐기되었거나 앵커링된 CID가 없으면 `404 notFound` 오류를 반환합니다
 4. 응답 형식:
    ```json
    {
@@ -157,14 +156,17 @@ DID를 해석하여 DID 문서를 조회하는 작업입니다.
        "driver": "f-did-go",
        "driverVersion": "1.0.0"
      },
-     "didDocumentMetadata": {}
+     "didDocumentMetadata": {
+       "versionId": "<IPFS CID>",
+       "cid": "<IPFS CID>"
+     }
    }
    ```
 
 **인증된 조회 엔드포인트:**
 
-1. 사용자 ID로 조회: `GET /api/v2/did/getDIDDocumentByID?userID=<user-id>`
-2. DID ID로 조회: `GET /api/v2/did/getDIDDocumentByDIDID?userDIDID=<base64-encoded-did>`
+1. 사용자 ID로 조회: `GET /api/v3/did/getDIDDocumentByID?userID=<user-id>`
+2. DID ID로 조회: `GET /api/v3/did/getDIDDocumentByDIDID?userDIDID=<base64-encoded-did>`
 3. API Key 인증이 필요합니다 (`X-API-Key` 헤더)
 4. 특정 consumer의 DID 문서만 조회됩니다
 
@@ -177,10 +179,10 @@ DID를 해석하여 DID 문서를 조회하는 작업입니다.
 1. 업데이트할 DID 문서를 준비합니다
    - 기존 DID와 동일한 `id` 필드를 사용해야 합니다
    - 업데이트된 내용(verificationMethod, service 등)을 포함합니다
-2. DID 문서를 생성한 DID의 개인 키로 서명합니다
+2. `proof`를 제외한 문서를 JCS로 정규화한 후, DID 문서를 생성한 DID의 개인 키로 서명하여 새로운 `DataIntegrityProof`(`ecdsa-jcs-2019`)를 생성합니다
 3. 서명된 DID 문서를 Base64로 인코딩합니다
 4. 등록 API를 사용하여 업데이트합니다:
-   - **엔드포인트:** `POST /api/v2/did/registDIDDocument` (Create와 동일한 엔드포인트)
+   - **엔드포인트:** `POST /api/v3/did/registDIDDocument` (Create와 동일한 엔드포인트)
    - **인증:** API Key 헤더 필요
    - 시스템이 자동으로 기존 DID 문서를 찾아 `Revoked` 상태로 변경한 후, 새 문서를 `Active` 상태로 저장합니다
 
@@ -190,8 +192,8 @@ DID를 해석하여 DID 문서를 조회하는 작업입니다.
 - DID의 `id` 필드는 변경할 수 없습니다
 - **인증 요구사항:**
   - API Key 인증과 DID 서명 검증 모두 필요합니다
-  - DID Document의 `proof` 필드에 있는 서명은 현재 Active DID Document의 `authentication` 배열에 있는 키에 대해 검증되어야 합니다
-  - 서명 검증의 경우, `authentication[0]` (첫 번째 인증 방법)이 기본 검증 키로 사용됩니다
+  - DID Document의 `proof.verificationMethod`는 현재 Active DID Document의 `verificationMethod` 배열에 존재하는 키를 참조해야 합니다 (그리고 `authentication`/`assertionMethod`에서 참조되어야 합니다)
+  - 참조된 `verificationMethod` 항목의 `publicKeyJwk`를 사용하여 `DataIntegrityProof`를 검증합니다
 
 ### Deactivate (비활성화/폐기)
 
@@ -201,7 +203,7 @@ DID 문서를 폐기하여 더 이상 사용할 수 없도록 하는 작업입�
 
 1. 폐기할 DID ID를 확인합니다
 2. 폐기 API를 호출합니다:
-   - **엔드포인트:** `POST /api/v2/did/revokeDIDDocument`
+   - **엔드포인트:** `POST /api/v3/did/revokeDIDDocument`
    - **인증:** API Key 헤더 필요
    - **요청 본문:**
      ```json
@@ -225,54 +227,53 @@ finger DID 메서드는 W3C DID Core 사양을 준수하며, 다음과 같은 �
 
 ```json
 {
-  "@context": ["https://www.w3.org/ns/did/v1"],
+  "@context": [
+    "https://www.w3.org/ns/did/v1.1",
+    "https://www.w3.org/ns/cid/v1",
+    "https://w3id.org/security/data-integrity/v2"
+  ],
   "id": "did:finger:<method-specific-identifier>",
-  "name": "<optional-name>",
-  "desc": "<optional-description>",
   "verificationMethod": [
     {
-      "id": "did:finger:<method-specific-identifier>",
-      "type": "<verification-key-type>",
-      "publicKeyBase58": "<base58-encoded-public-key>"
+      "id": "did:finger:<method-specific-identifier>#key-1",
+      "type": "JsonWebKey",
+      "controller": "did:finger:<method-specific-identifier>",
+      "publicKeyJwk": {
+        "kty": "EC",
+        "crv": "P-256",
+        "x": "<base64url-encoded-x-coordinate>",
+        "y": "<base64url-encoded-y-coordinate>"
+      }
     }
   ],
   "authentication": [
-    {
-      "id": "did:finger:<method-specific-identifier>",
-      "type": "<verification-key-type>",
-      "publicKeyBase58": "<base58-encoded-public-key>"
-    }
+    "did:finger:<method-specific-identifier>#key-1"
   ],
-  "service": {
-    "id": "did:finger:<method-specific-identifier>#service",
-    "type": "SmartContractService",
-    "serviceEndpoint": {
-      "chain": "<blockchain-name>",
-      "contractAddress": "<contract-address>",
-      "rpcUrl": "<rpc-url>",
-      "abi": "<contract-abi>"
-    }
-  },
+  "assertionMethod": [
+    "did:finger:<method-specific-identifier>#key-1"
+  ],
   "proof": {
-    "type": "<verification-key-type>",
-    "creator": "did:finger:<method-specific-identifier>",
-    "created": "<iso8601-timestamp-rfc3339nano>",
-    "nonce": "<hex-encoded-32-char-nonce>",
-    "signatureValue": "<base64-url-safe-encoded-signature>"
+    "type": "DataIntegrityProof",
+    "cryptosuite": "ecdsa-jcs-2019",
+    "created": "<rfc3339-utc-timestamp>",
+    "verificationMethod": "did:finger:<method-specific-identifier>#key-1",
+    "proofPurpose": "assertionMethod",
+    "proofValue": "z<multibase-base58btc-encoded-signature>"
   }
 }
 ```
 
+**참고:** `service` 속성(선택, 예: 블록체인 스마트 컨트랙트 엔드포인트용, §12 참조)이 추가로 포함될 수 있습니다; 이는 비규범적(non-normative)입니다.
+
 ## 지원 암호화 알고리즘
 
-finger DID 메서드는 다음 암호화 알고리즘을 지원합니다:
+finger DID 메서드의 DID 문서는 현재 다음을 사용합니다:
 
-- **ECDSA P-256** (`EcdsaP256VerificationKey2019`)
-- **ECDSA P-384** (`EcdsaP384VerificationKey2019`)
-- **ECDSA P-521** (`EcdsaP521VerificationKey2019`)
-- **ECDSA secp256k1** (`EcdsaSecp256k1VerificationKey2019`)
-- **RSA 2048** (`RsaVerificationKey2018`)
-- **RSA 4096** (`RsaVerificationKey2018`)
+- **검증 방법 타입:** `JsonWebKey`, 키 소재는 `publicKeyJwk`에 담김
+- **현재 지원 곡선:** EC P-256 (JWK `kty`: `EC`, `crv`: `P-256`)
+- **Proof:** `DataIntegrityProof`, cryptosuite `ecdsa-jcs-2019` (P-256 위의 ECDSA, JCS/RFC 8785 정규화)
+
+향후 다른 곡선·키 타입에 대한 지원이 추가될 수 있습니다; 이는 비규범적(non-normative)입니다.
 
 ## DID Resolution
 
@@ -286,7 +287,7 @@ GET /1.0/identifiers/{did}
 
 **예시:**
 ```
-GET /1.0/identifiers/did:finger:ZDNlNGJkZDktYWRhYy00YTgzLWJhMzctMGY2N2Y2OTQ2ZmQy
+GET /1.0/identifiers/did:finger:NTU1NGUwN2QtNjEyOC00ODA0LWExNWYtOTlhNGQ1NTc5NDc5
 ```
 
 ### 응답 형식
@@ -296,7 +297,11 @@ GET /1.0/identifiers/did:finger:ZDNlNGJkZDktYWRhYy00YTgzLWJhMzctMGY2N2Y2OTQ2ZmQy
 ```json
 {
   "didDocument": {
-    "@context": ["https://www.w3.org/ns/did/v1"],
+    "@context": [
+      "https://www.w3.org/ns/did/v1.1",
+      "https://www.w3.org/ns/cid/v1",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
     "id": "did:finger:...",
     ...
   },
@@ -305,7 +310,10 @@ GET /1.0/identifiers/did:finger:ZDNlNGJkZDktYWRhYy00YTgzLWJhMzctMGY2N2Y2OTQ2ZmQy
     "driver": "f-did-go",
     "driverVersion": "1.0.0"
   },
-  "didDocumentMetadata": {}
+  "didDocumentMetadata": {
+    "versionId": "<IPFS CID>",
+    "cid": "<IPFS CID>"
+  }
 }
 ```
 
@@ -321,60 +329,68 @@ GET /1.0/identifiers/did:finger:ZDNlNGJkZDktYWRhYy00YTgzLWJhMzctMGY2N2Y2OTQ2ZmQy
 
 반환되는 DID Document는 DID Core를 준수합니다:
 
-- **@context:** 항상 첫 번째 요소 (`https://www.w3.org/ns/did/v1`)
+- **@context:** 3개 요소로 구성된 배열 (`https://www.w3.org/ns/did/v1.1`, `https://www.w3.org/ns/cid/v1`, `https://w3id.org/security/data-integrity/v2`)
 - **id:** 해석된 DID
-- **verificationMethod:** 지원되는 공개 키 (예: `EcdsaP256VerificationKey2019`)
-- **authentication:** 인증에 사용되는 키 참조
+- **verificationMethod:** 지원되는 공개 키. `JsonWebKey` 타입이며 키 소재는 `publicKeyJwk`(EC P-256)에 담김
+- **authentication:** 인증에 사용되는 키에 대한 문자열 참조 (예: `#key-1`)
+- **assertionMethod:** assertion 발급에 사용되는 키에 대한 문자열 참조 (현재는 `authentication`과 동일한 키)
 - **service:** 서비스 엔드포인트 (선택적)
-- **proof:** DID 문서의 서명 (선택적)
+- **proof:** `DataIntegrityProof`(cryptosuite `ecdsa-jcs-2019`) 형식의 DID 문서 서명
 
 ## DID 문서 관리
 
-finger DID 메서드는 DID 문서의 등록, 조회, 폐기 기능을 제공합니다. 모든 관리 작업은 API Key 기반 인증을 통해 보호되며, DID 문서는 데이터베이스에 저장되어 관리됩니다.
+finger DID 메서드는 DID 문서의 등록, 조회, 폐기 기능을 제공합니다. 모든 관리 작업은 API Key 기반 인증을 통해 보호됩니다. DID 문서는 IPFS에 저장되고 그 콘텐츠 식별자(CID)는 온체인에 앵커링되며, 발급·상태 추적을 위한 운영자 데이터베이스 기록도 함께 관리됩니다 (§11 참조).
 
 ## Verifiable Data Registry (VDR) 및 신뢰 모델
 
 ### VDR 아키텍처
 
-finger DID 메서드는 F-DID 서비스 운영자가 관리하는 중앙화된 Verifiable Data Registry(VDR, 데이터베이스)를 사용합니다. VDR은 DID 문서를 저장하고 라이프사이클(Active/Revoked 상태)을 관리합니다. 본 스펙은 현재 중앙 DB 기반 VDR을 전제로 정의되어 있으며, 향후 다른 VDR(예: 분산원장)로 확장 가능하도록 설계될 수 있으나, 이는 비규범적(non-normative)입니다.
+finger DID 메서드는 F-DID 서비스 운영자가 운영하는 하이브리드 Verifiable Data Registry(VDR)를 사용하며, 다음 세 계층으로 구성됩니다:
+
+- **IPFS (문서 저장):** DID 문서 전체가 IPFS에 저장되며, 이 과정에서 문서 내용의 암호학적 해시인 콘텐츠 식별자(CID)가 산출됩니다.
+- **온체인 앵커 (무결성/레지스트리):** CID는 이더리움 호환 스마트 컨트랙트(`didRegistry.setCid(keccak256(did), cid)`)에 앵커링되어, 특정 DID에 현재 어떤 CID가 연결되어 있는지에 대한 변조 감지 가능하고 공개적으로 감사 가능한 기록을 제공합니다.
+- **운영자 데이터베이스:** F-DID 서비스 운영자는 추가로 발급 워크플로우, consumer/API-Key 관리, Active/Revoked 상태 추적을 위한 데이터베이스를 유지합니다.
+
+본 스펙은 이 체인 앵커링·IPFS 기반 하이브리드 VDR을 전제로 정의되어 있으며, 향후 다른 레지스트리(예: 다른 분산원장)로 확장 가능하도록 설계될 수 있으나, 이는 비규범적(non-normative)입니다.
 
 **해석 모델:**
 - DID 해석은 공개 HTTP 엔드포인트(`GET /1.0/identifiers/{did}`)를 통해 수행됩니다
-- Resolver는 F-DID 서비스 운영자가 유지 관리하는 VDR 데이터베이스를 쿼리합니다
+- Resolver는 해당 DID에 대해 온체인에 앵커링된 CID를 읽어들이고(`didRegistry.getCid(keccak256(did))`), IPFS에서 대응하는 DID 문서를 가져오며, 운영자 데이터베이스를 통해 Active/Revoked 상태를 교차 확인합니다
 - 모든 Active DID 문서는 인증 없이 공개적으로 해석 가능합니다
 
 **신뢰 모델:**
-- **가용성 의존성:** DID 해석은 F-DID 서비스 운영자 인프라의 가용성 및 운영 무결성에 의존합니다
-- **무결성 보호:** VDR이 중앙화되어 있지만, DID 문서 무결성은 `proof` 필드의 암호화 서명을 통해 보호됩니다
+- **가용성 의존성:** DID 해석은 F-DID 서비스 운영자 인프라(블록체인 노드, IPFS 노드/피닝 서비스, 데이터베이스)의 가용성 및 운영 무결성에 의존합니다
+- **무결성 보호:** 운영자의 데이터베이스는 중앙화되어 있지만, DID 문서 무결성은 이중으로 보호됩니다: 온체인 CID 앵커는 IPFS에 저장된 문서의 대체(substitution)를 탐지하며, `proof` 필드의 암호화 서명은 문서의 진위성을 독립적으로 검증합니다
 - **신뢰 가정:**
   - 클라이언트는 F-DID 서비스 운영자가 다음을 수행할 것을 신뢰해야 합니다:
-    - 데이터베이스 가용성 유지
+    - 블록체인, IPFS, 데이터베이스의 가용성 유지
     - Active DID에 대해 정확한 DID 문서 반환
     - 적절한 권한 없이 DID 문서를 임의로 폐기하거나 수정하지 않음
-  - DID 문서 인증은 VDR 운영자의 조치와 무관하게 암호화 서명 검증을 통해 독립적으로 검증 가능합니다
+  - DID 문서 인증은 VDR 운영자의 조치와 무관하게 암호화 서명 검증 및 CID/콘텐츠 일치 확인을 통해 독립적으로 검증 가능합니다
 
 **완화 전략:**
 - **암호화 검증:** 모든 DID 문서는 VDR과 독립적으로 검증 가능한 암호화 서명을 포함합니다
+- **콘텐츠 주소 기반 무결성:** IPFS 콘텐츠는 CID로 주소 지정되고 그 CID가 온체인에 앵커링되어 있으므로, 저장된 문서 내용에 대한 변조는 CID를 재계산·비교하여 탐지할 수 있습니다
 - **감사 로깅:** 상태 변경(Create/Update/Deactivate)은 감사 목적으로 기록됩니다
 - **서명 기반 권한 부여:** 업데이트 및 비활성화는 DID 컨트롤러의 유효한 암호화 서명을 요구하여, VDR 운영자의 임의 수정을 방지합니다
 
 **잔여 위험:**
-- **서비스 가용성:** F-DID 서비스가 오프라인일 때 DID 해석을 사용할 수 없을 수 있습니다
+- **서비스 가용성:** 블록체인 노드, IPFS 노드, 또는 F-DID 서비스가 오프라인일 때 DID 해석을 사용할 수 없을 수 있습니다
 - **운영자 침해:** VDR 운영자가 침해당할 경우:
   - 해석 거부 (DoS)
-  - 잘못되었거나 오래된 데이터 반환 (서명 검증을 통해 감지 가능)
-  - 그러나 컨트롤러 개인 키 없이는 유효한 서명을 위조할 수 없습니다
-- **데이터베이스 침해:** 데이터베이스 침해는 DID 문서 내용을 노출할 수 있지만, 컨트롤러 개인 키 없이는 무단 업데이트를 허용하지 않습니다
+  - 잘못되었거나 오래된 데이터 반환 (CID 불일치 또는 서명 검증을 통해 감지 가능)
+  - 그러나 컨트롤러 개인 키 없이는 유효한 서명을 위조할 수 없고, 레지스트리 컨트랙트의 승인된 서명자 키 없이는 온체인 CID 앵커를 재작성할 수 없습니다
+- **데이터베이스 침해:** 데이터베이스 침해는 상태/메타데이터를 노출할 수 있지만, 컨트롤러 개인 키와 승인된 온체인 쓰기 권한 없이는 무단 업데이트를 허용하지 않습니다
 
 **운영 고려사항:**
-- F-DID 서비스 운영자는 고가용성 인프라를 유지합니다
+- F-DID 서비스 운영자는 블록체인 노드, IPFS 노드/피닝, 데이터베이스에 대해 고가용성 인프라를 유지합니다
 - 데이터베이스 백업 및 재해 복구 절차가 유지됩니다
 - API Key 관리는 보안 모범 사례를 따릅니다
 - 서비스 상태 및 유지보수 기간이 사용자에게 통지됩니다
 
 ## 블록체인 통합
 
-finger DID 메서드는 선택적으로 블록체인과 통합하여 추가 검증 및 레지스트리 기능을 제공할 수 있습니다.
+블록체인 통합은 finger DID 메서드의 핵심 VDR 아키텍처(§11 참조)의 일부입니다: IPFS에 저장된 각 DID 문서의 CID는 이더리움 호환 스마트 컨트랙트(`didRegistry.setCid(keccak256(did), cid)`)에 앵커링되어, 문서의 현재 상태에 대한 변조 감지 가능하고 공개적으로 검증 가능한 기록을 제공합니다. 이는 §2/§6에서 설명한, DID 주체가 자신의 외부 스마트 컨트랙트(예: STO/NFT 서비스)를 참조할 수 있게 하는 선택적 `service` 엔드포인트 기반 스마트 컨트랙트 연동과는 별개입니다.
 
 ## Governance
 
@@ -398,7 +414,7 @@ finger DID 메서드는 선택적으로 블록체인과 통합하여 추가 검�
 
 **공개 키 노출:**
 
-- 공개 키는 DID Document의 `verificationMethod`에 Base58 인코딩된 형태로 저장됩니다
+- 공개 키는 DID Document의 `verificationMethod`에 JWK 형태(`publicKeyJwk`, EC P-256)로 저장됩니다
 - 공개 키는 공개 정보이므로 누구나 조회할 수 있습니다
 - 공개 키는 서명 검증에 사용되며, 개인 키 없이는 서명을 생성할 수 없습니다
 
@@ -414,28 +430,24 @@ finger DID 메서드는 선택적으로 블록체인과 통합하여 추가 검�
 
 - 모든 DID 문서는 생성 시 해당 DID의 개인 키로 서명됩니다
 - **정규화 및 직렬화:**
-  - DID 문서(`proof` 필드 제외)는 Go의 표준 `json.Marshal` 함수를 사용하여 JSON으로 직렬화됩니다
-  - 결과 JSON 바이트가 암호화 서명의 입력으로 사용됩니다
-  - 참고: Go의 `json.Marshal`은 동일한 입력 구조에 대해 결정론적 출력을 생성하지만, 구현자는 필드 순서가 구현 간에 다를 수 있음을 인지해야 합니다
+  - DID 문서(`proof` 필드 제외)는 JCS(JSON Canonicalization Scheme, RFC 8785)로 정규화됩니다
+  - 그 결과인 정규화된 바이트가 암호화 서명의 입력으로 사용됩니다
+  - 참고: JCS는 주어진 JSON 값에 대해 (고정된 키 순서, 고정된 숫자 표기 등) 단일하고 결정론적인 바이트 직렬화를 생성하므로, 임의(ad-hoc) JSON 직렬화에서 발생할 수 있는 필드 순서 모호성이 제거됩니다
 - **Proof 구조:**
-  - 서명에는 다음 정보가 포함됩니다:
-    - `creator`: 서명을 생성한 DID
-    - `created`: 서명 생성 시간 (ISO8601 형식, RFC3339Nano)
-    - `type`: 검증 방법 타입 (verificationMethod와 일치)
-    - `nonce`: 재전송 공격 방지를 위한 난수 16진수 문자열 (32개의 16진수 문자, 16바이트)
-    - `signatureValue`: Base64 URL-safe 인코딩된 서명 값 (base64.URLEncoding)
+  - `proof` (`DataIntegrityProof`)에는 다음 정보가 포함됩니다:
+    - `type`: 항상 `DataIntegrityProof`
+    - `cryptosuite`: `ecdsa-jcs-2019`
+    - `verificationMethod`: 서명을 생성한 키의 DID URL (프래그먼트 포함, 예: `#key-1`)
+    - `created`: 서명 생성 시간 (RFC3339, UTC)
+    - `proofPurpose`: `assertionMethod`
+    - `proofValue`: Multibase(base58btc, `z` 접두) 인코딩된 서명 값
 - **서명 프로세스:**
   1. `proof` 필드 없이 DID 문서 구조 생성
-  2. `json.Marshal`을 사용하여 JSON 바이트로 직렬화
-  3. 개인 키를 사용하여 JSON 바이트에 서명
-  4. 서명 및 메타데이터를 포함한 proof 객체 생성
+  2. JCS(RFC 8785)로 문서 정규화
+  3. 개인 키(ECDSA P-256)를 사용하여 정규화된 바이트에 서명
+  4. `proofValue` 및 메타데이터를 포함한 proof 객체(`DataIntegrityProof`) 생성
   5. DID 문서에 proof 추가
-- 서명 알고리즘은 verificationMethod에 명시된 타입과 일치해야 합니다:
-  - ECDSA P-256: SHA-256 해시 사용
-  - ECDSA P-384: SHA-384 해시 사용
-  - ECDSA P-521: SHA-512 해시 사용
-  - Secp256k1: SHA-256 해시 사용
-  - RSA: SHA-256 해시 및 PKCS1v15 패딩 사용
+- 서명 알고리즘은 proof의 `cryptosuite`에 의해 결정됩니다. 현재 지원되는 cryptosuite는 `ecdsa-jcs-2019`(P-256 곡선 위의 ECDSA, SHA-256 해시, JCS로 정규화된 입력)입니다. 향후 다른 cryptosuite/곡선에 대한 지원이 추가될 수 있습니다; 이는 비규범적(non-normative)입니다.
 
 **서명 검증:**
 
@@ -443,13 +455,12 @@ finger DID 메서드는 선택적으로 블록체인과 통합하여 추가 검�
 - **검증 프로세스:**
   1. DID 문서에서 `proof` 필드 추출
   2. `proof` 필드 없이 DID 문서 복사본 생성
-  3. 서명과 동일한 방법(Go의 `json.Marshal`)을 사용하여 proof 없는 문서를 JSON 바이트로 직렬화
-  4. `authentication[0].PublicKeyBase58` 필드에서 공개 키 추출 (첫 번째 인증 방법)
-  5. `signatureValue`를 Base64 URL-safe 인코딩에서 디코딩
-  6. 공개 키와 직렬화된 JSON 바이트를 사용하여 서명 검증
+  3. 서명과 동일한 방법(JCS, RFC 8785)을 사용하여 proof 없는 문서를 정규화
+  4. `proof.verificationMethod`가 참조하는 키(예: `#key-1`)를 DID Document의 `verificationMethod` 배열에서 찾아 `publicKeyJwk`(EC P-256)를 추출
+  5. `proofValue`를 Multibase(base58btc, `z` 접두) 인코딩에서 디코딩
+  6. 공개 키와 정규화된 바이트를 사용하여 서명 검증
 - 서명 검증 실패 시 DID 문서는 유효하지 않은 것으로 간주됩니다
-- proof의 `nonce` 필드는 구현자가 재전송 공격 방지를 위해 사용할 수 있습니다 (nonce 저장 및 검증은 구현별로 다름)
-- 서명 검증은 `authentication` 필드의 DID 공개 키를 사용하여 수행됩니다
+- 서명 검증은 `proof.verificationMethod`가 참조하는 `verificationMethod` 항목의 공개 키(`publicKeyJwk`)를 사용하여 수행됩니다
 
 **위조 방지:**
 
@@ -486,8 +497,8 @@ finger DID 메서드는 선택적으로 블록체인과 통합하여 추가 검�
   - API Key는 **어떤 consumer**가 작업을 제출할 수 있는지 제어하고, DID 서명은 **누가 DID를 제어하는지** 증명합니다
   - 작업이 성공하려면 둘 다 유효해야 합니다
 - **검증 키 선택:**
-  - 서명 검증의 경우, `authentication` 배열의 첫 번째 키(`authentication[0]`)가 사용됩니다
-  - 여러 인증 키가 존재할 때, 컨트롤러는 서명 키가 `authentication` 배열의 키 중 하나와 일치하는지 확인할 책임이 있습니다
+  - 서명 검증의 경우, `proof.verificationMethod`가 참조하는 키(예: `#key-1`)가 사용됩니다
+  - 여러 키가 존재할 때, 컨트롤러는 서명 키가 `verificationMethod` 배열에 존재하고 `authentication`/`assertionMethod`에서 적절히 참조되는지 확인할 책임이 있습니다
 - API Key 유출 시 즉시 취소하고 새로운 키를 발급해야 합니다
 
 **공개 해석 API:**
@@ -541,8 +552,7 @@ finger DID 메서드는 선택적으로 블록체인과 통합하여 추가 검�
 **암호화 강도:**
 
 - 지원되는 암호화 알고리즘은 업계 표준을 따릅니다:
-  - ECDSA: P-256, P-384, P-521 곡선 사용
-  - RSA: 2048비트 이상의 키 길이 사용
+  - ECDSA: P-256 곡선 사용 (현재 지원되는 cryptosuite는 §7 참조)
 - 약한 암호화 알고리즘은 사용하지 않습니다
 
 ### 추가 보안 권장사항
@@ -573,9 +583,9 @@ finger DID 메서드는 Go 언어로 구현되었습니다. 이 섹션은 `did:f
 **1. DID 형식 검증:**
 
 DID가 `did:finger:<method-specific-identifier>` 형식을 따르는지 검증합니다:
-- method-specific identifier는 Base64로 인코딩된 UUID 문자열입니다
-- 문자셋: A-Z, a-z, 0-9, +, /, =
-- 길이: 약 44-48자
+- method-specific identifier는 Base64url로 인코딩(RFC 4648 §5, 패딩 없음)된 UUID 문자열입니다
+- 문자셋: A-Z, a-z, 0-9, -, _
+- 길이: 약 48자
 
 **2. 해석 프로세스:**
 
@@ -592,7 +602,10 @@ DID가 `did:finger:<method-specific-identifier>` 형식을 따르는지 검증�
        "driver": "f-did-go",
        "driverVersion": "1.0.0"
      },
-     "didDocumentMetadata": {}
+     "didDocumentMetadata": {
+       "versionId": "<IPFS CID>",
+       "cid": "<IPFS CID>"
+     }
    }
    ```
 4. 오류 응답을 처리합니다:
@@ -617,24 +630,24 @@ DID가 `did:finger:<method-specific-identifier>` 형식을 따르는지 검증�
 - **인증:** 불필요 (공개 엔드포인트)
 - **예시:**
   ```bash
-  curl "https://your-server.com/1.0/identifiers/did:finger:ZDNlNGJkZDktYWRhYy00YTgzLWJhMzctMGY2N2Y2OTQ2ZmQy"
+  curl "https://your-server.com/1.0/identifiers/did:finger:NTU1NGUwN2QtNjEyOC00ODA0LWExNWYtOTlhNGQ1NTc5NDc5"
   ```
 
 **관리 엔드포인트 (API Key 인증 필요):**
 
 이 엔드포인트들은 API Key 인증이 필요하며 DID 문서 관리에 사용됩니다:
 
-- **등록/업데이트:** `POST /api/v2/did/registDIDDocument`
+- **등록/업데이트:** `POST /api/v3/did/registDIDDocument`
   - 헤더: `X-API-Key: <your-api-key>`
   - 본문: `userId`, `userDIDID`, `didDocument`를 포함한 JSON
   
-- **사용자 ID로 조회:** `GET /api/v2/did/getDIDDocumentByID?userID=<user-id>`
+- **사용자 ID로 조회:** `GET /api/v3/did/getDIDDocumentByID?userID=<user-id>`
   - 헤더: `X-API-Key: <your-api-key>`
   
-- **DID ID로 조회:** `GET /api/v2/did/getDIDDocumentByDIDID?userDIDID=<base64-encoded-did>`
+- **DID ID로 조회:** `GET /api/v3/did/getDIDDocumentByDIDID?userDIDID=<base64-encoded-did>`
   - 헤더: `X-API-Key: <your-api-key>`
   
-- **폐기:** `POST /api/v2/did/revokeDIDDocument`
+- **폐기:** `POST /api/v3/did/revokeDIDDocument`
   - 헤더: `X-API-Key: <your-api-key>`
   - 본문: `userDIDID`를 포함한 JSON
 
@@ -644,9 +657,9 @@ DID가 `did:finger:<method-specific-identifier>` 형식을 따르는지 검증�
 
 **DID 생성 알고리즘:**
 
-1. UUID v4를 생성합니다 (예: `3d3e4bdd-9adac-04a83-ba37-0f67f69462fd2`)
+1. UUID v4를 생성합니다 (예: `5554e07d-6128-4804-a15f-99a4d5579479`)
 2. UUID 문자열을 바이트 배열로 변환합니다
-3. Base64 표준 인코딩(StdEncoding)을 사용하여 인코딩합니다
+3. Base64url 인코딩(패딩 없음, `base64.RawURLEncoding`, RFC 4648 §5)을 사용하여 인코딩합니다
 4. `did:finger:`를 앞에 붙여 전체 DID를 생성합니다
 
 **구현 예시 (Go):**
@@ -662,15 +675,15 @@ import (
 
 func GenerateFingerDID() (string, error) {
     // UUID v4 생성
-    uuidObj, err := uuid.NewUUID()
+    uuidObj, err := uuid.NewRandom()
     if err != nil {
         return "", err
     }
     uuidStr := uuidObj.String()
     
-    // 바이트로 변환 후 Base64 인코딩
+    // 바이트로 변환 후 Base64url 인코딩 (패딩 없음)
     uuidBytes := []byte(uuidStr)
-    methodSpecificId := base64.StdEncoding.EncodeToString(uuidBytes)
+    methodSpecificId := base64.RawURLEncoding.EncodeToString(uuidBytes)
     
     // DID 생성
     did := fmt.Sprintf("did:finger:%s", methodSpecificId)
@@ -684,38 +697,51 @@ DID 문서를 생성하거나 업데이트할 때 다음 구조를 준수해야 
 
 ```json
 {
-  "@context": ["https://www.w3.org/ns/did/v1"],
+  "@context": [
+    "https://www.w3.org/ns/did/v1.1",
+    "https://www.w3.org/ns/cid/v1",
+    "https://w3id.org/security/data-integrity/v2"
+  ],
   "id": "did:finger:<method-specific-identifier>",
   "verificationMethod": [
     {
-      "id": "did:finger:<method-specific-identifier>",
-      "type": "EcdsaP256VerificationKey2019",
-      "publicKeyBase58": "<base58-encoded-public-key>"
+      "id": "did:finger:<method-specific-identifier>#key-1",
+      "type": "JsonWebKey",
+      "controller": "did:finger:<method-specific-identifier>",
+      "publicKeyJwk": {
+        "kty": "EC",
+        "crv": "P-256",
+        "x": "<base64url-encoded-x-coordinate>",
+        "y": "<base64url-encoded-y-coordinate>"
+      }
     }
   ],
   "authentication": [
-    "did:finger:<method-specific-identifier>"
+    "did:finger:<method-specific-identifier>#key-1"
+  ],
+  "assertionMethod": [
+    "did:finger:<method-specific-identifier>#key-1"
   ],
   "proof": {
-    "type": "EcdsaP256VerificationKey2019",
-    "creator": "did:finger:<method-specific-identifier>",
-    "created": "<iso8601-timestamp>",
-    "nonce": "<random-nonce>",
-    "signatureValue": "<base64-encoded-signature>"
+    "type": "DataIntegrityProof",
+    "cryptosuite": "ecdsa-jcs-2019",
+    "created": "<rfc3339-utc-timestamp>",
+    "verificationMethod": "did:finger:<method-specific-identifier>#key-1",
+    "proofPurpose": "assertionMethod",
+    "proofValue": "z<multibase-base58btc-encoded-signature>"
   }
 }
 ```
 
 ### 지원 암호화 알고리즘
 
-서명 검증을 구현할 때 다음 알고리즘을 지원해야 합니다:
+서명 검증을 구현할 때 다음을 지원해야 합니다:
 
-- **ECDSA P-256** with SHA-256 (`EcdsaP256VerificationKey2019`)
-- **ECDSA P-384** with SHA-384 (`EcdsaP384VerificationKey2019`)
-- **ECDSA P-521** with SHA-512 (`EcdsaP521VerificationKey2019`)
-- **ECDSA secp256k1** with SHA-256 (`EcdsaSecp256k1VerificationKey2019`)
-- **RSA 2048** with SHA-256 (`RsaVerificationKey2018`)
-- **RSA 4096** with SHA-256 (`RsaVerificationKey2018`)
+- **검증 방법 타입:** `JsonWebKey`, `publicKeyJwk` 사용
+- **현재 지원 곡선:** EC P-256
+- **Proof cryptosuite:** `ecdsa-jcs-2019` (P-256 위의 ECDSA, JCS/RFC 8785 정규화 입력, SHA-256 해시)
+
+향후 다른 cryptosuite/곡선에 대한 지원이 추가될 수 있습니다; 이는 비규범적(non-normative)입니다.
 
 ### Universal Resolver 통합
 
@@ -802,32 +828,27 @@ finger DID 메서드는 Go로 구현되었으며 다음을 제공합니다:
 
 ## Test Vectors
 
-다음은 유효한 `did:finger` DID 예시입니다:
+다음은 유효한 `did:finger` DID 예시로, 참조 리졸버(예: `https://did-dev.fingerservice.co.kr:5070/1.0/identifiers/<did>`)에서 현재 해석 가능합니다:
 
 **예시 1:**
 ```
-did:finger:ZDNlNGJkZDktYWRhYy00YTgzLWJhMzctMGY2N2Y2OTQ2ZmQy
+did:finger:NTU1NGUwN2QtNjEyOC00ODA0LWExNWYtOTlhNGQ1NTc5NDc5
 ```
 
 **예시 2:**
 ```
-did:finger:YmMzMWNjMTEtYWYwYS00ZGY2LWJiNzUtOGNkMTk2MTBjMTA0
-```
-
-**예시 3:**
-```
-did:finger:OTliNWZjNmItYjcxOC00YzNkLWE4NGUtNTA4MDlmNzljM2Y1
+did:finger:MWY0YzgyMjQtMzNkYy00ZjY5LTg3NDgtZWQ3NWM3Mzc4ZjJm
 ```
 
 각 DID는 유효한 DID Document로 해석되어야 합니다.
 
 ## W3C Registration
 
-이 메서드는 W3C DID Method Registry에 등록을 준비 중입니다.
+이 메서드는 W3C DID Method Registry에 등록 완료되었습니다 (메서드 이름 `finger`).
 
-**상태:** 등록 준비 중
+**상태:** 등록 완료
 
 ## 상태
 
-이 DID 메서드는 현재 **개발 중** 상태이며, W3C DID Extensions 레지스트리에 등록을 준비 중입니다.
+이 DID 메서드는 현재 **운영 중**이며, W3C DID Extensions 레지스트리에 등록되어 있습니다.
 

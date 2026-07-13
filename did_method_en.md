@@ -11,7 +11,7 @@ The **finger** DID method is a Decentralized Identifier (DID) method implemented
 The finger DID method is defined for the following purposes:
 
 - **Standards-Compliant DID Provision:** Provides a practical DID method that conforms to W3C DID Core and DID Resolution standards.
-- **Central DB-Based VDR:** The reference implementation of this specification uses a centralized database-based Verifiable Data Registry (VDR). It supports predictable costs and simple deployment in enterprise and financial environments. The design may be extended to other VDRs (e.g., distributed ledger) in the future; this is non-normative.
+- **Hybrid VDR (Blockchain + IPFS + DB):** The reference implementation of this specification uses a hybrid Verifiable Data Registry (VDR): DID documents are stored on IPFS (content-addressed storage), the resulting content identifier (CID) is anchored on an Ethereum-compatible smart contract for tamper-evidence, and an operator-managed database supports issuance and status tracking. It supports predictable costs and simple deployment in enterprise and financial environments while adding cryptographic tamper-evidence through the on-chain anchor. The design may be extended to other registries in the future; this is non-normative.
 - **Cryptographic Signature-Based Integrity:** DID document authenticity can be independently verified through cryptographic signatures in the `proof` field, regardless of the VDR operator.
 - **F-DID Ecosystem Integration:** Builds digital identity infrastructure integrated with Finger Co., Ltd.'s F-DID solution and financial/blockchain platforms.
 - **B2B DID Infrastructure Provision:** The goal is to provide managed DID services (DID-as-a-Service) to enterprises, financial institutions, and public agencies that have difficulty building and operating DIDs on their own. F-DID is a commercial solution developed by Finger Co., Ltd. based on this DID method and is offered to the B2B market.
@@ -47,39 +47,39 @@ did:finger:<method-specific-identifier>
 
 **Regex:**
 ```
-^did:finger:[A-Za-z0-9+/=]+$
+^did:finger:[A-Za-z0-9_-]+$
 ```
 
 **ABNF:**
 ```
 did-finger    = "did:finger:" method-specific-id
-method-specific-id = 1*( ALPHA / DIGIT / "+" / "/" / "=" )
+method-specific-id = 1*( ALPHA / DIGIT / "-" / "_" )
 ALPHA         = %x41-5A / %x61-7A   ; A-Z, a-z
 DIGIT         = %x30-39              ; 0-9
 ```
 
 ### Method-Specific Identifier
 
-The method-specific identifier is a Base64-encoded UUID string.
+The method-specific identifier is a Base64url-encoded (no padding) UUID string.
 
 **Generation Process:**
 
-1. Generate a UUID v4 (e.g., `3d3e4bdd-9adac-04a83-ba37-0f67f69462fd2`)
+1. Generate a UUID v4 (e.g., `5554e07d-6128-4804-a15f-99a4d5579479`)
 2. Convert the UUID string to a byte array
-3. Encode using Base64 standard encoding (StdEncoding)
+3. Encode using Base64url encoding without padding (`base64.RawURLEncoding`, RFC 4648 §5)
 4. The resulting string becomes the method-specific identifier
 
 **Rules:**
-- **Character Set:** Base64 standard character set (A-Z, a-z, 0-9, +, /, =)
-- **Length:** Approximately 44-48 characters (result of Base64 encoding a UUID)
+- **Character Set:** Base64url character set (RFC 4648 §5: A-Z, a-z, 0-9, -, _), no padding
+- **Length:** Approximately 48 characters (result of Base64url-encoding, without padding, a 36-character UUID string)
 - **Collision Management:** Uniqueness guaranteed by UUID v4
-- **Case Sensitivity:** Case-sensitive as it is a Base64 encoding result
+- **Case Sensitivity:** Case-sensitive as it is a Base64url encoding result
 
-**Note:** This specification uses standard Base64 encoding (RFC 4648) which includes `+`, `/`, and `=` padding characters. Implementers should ensure proper URL encoding when transmitting DIDs in URL paths to avoid routing issues.
+**Note:** This specification uses Base64url encoding (RFC 4648 §5, `base64.RawURLEncoding` in Go) without `=` padding. Because the character set (`A-Z`, `a-z`, `0-9`, `-`, `_`) is already URL-safe, no additional percent-encoding is required when transmitting DIDs in URL paths.
 
 **Example:**
 ```
-did:finger:ZDNlNGJkZDktYWRhYy00YTgzLWJhMzctMGY2N2Y2OTQ2ZmQy
+did:finger:NTU1NGUwN2QtNjEyOC00ODA0LWExNWYtOTlhNGQ1NTc5NDc5
 ```
 
 ## 5. Method Operations
@@ -92,24 +92,22 @@ This operation generates and registers a new DID and DID document.
 
 **DID Generation Process:**
 
-1. Select a cryptographic algorithm (e.g., P256, P384, P521, Secp256k1, RSA2048, RSA4096)
+1. Select a cryptographic algorithm (currently EC P-256; see Section 7)
 2. Generate a key pair (private key/public key) using the selected algorithm
-3. Generate a UUID v4 and encode it in Base64 to create the method-specific identifier
+3. Generate a UUID v4 and encode it in Base64url (no padding) to create the method-specific identifier
 4. Create a DID in the format `did:finger:<method-specific-identifier>`
 5. Construct a DID object with the generated key pair
 
 **DID Document Creation and Registration:**
 
 1. Create a DID document using the generated DID:
-   - Include `@context`, `id`, `verificationMethod`, and `authentication` fields
-   - Optionally include `name`, `desc`, `service`, and `proof` fields
-2. Serialize the DID document to JSON
-3. Sign the DID document with the private key of the DID that created it:
-   - The signature algorithm must match the type specified in verificationMethod
-   - The signature includes a nonce and timestamp
-4. Encode the signed DID document in Base64
-5. Store it in the database through the registration API:
-   - **Endpoint:** `POST /api/v2/did/registDIDDocument`
+   - Include `@context`, `id`, `verificationMethod`, `authentication`, and `assertionMethod` fields
+   - Optionally include a `service` field
+2. Canonicalize the DID document (excluding the `proof` field) using JCS (JSON Canonicalization Scheme, RFC 8785)
+3. Sign the canonicalized bytes with the private key of the DID that created it, using the `ecdsa-jcs-2019` cryptosuite (ECDSA P-256), and construct a `DataIntegrityProof` object that references the signing key via `verificationMethod`
+4. Add the `proof` object to the DID document and encode the resulting JSON document in Base64 for API transport
+5. Register it via the registration API (the operator stores the document on IPFS, anchors its CID on-chain, and records status in its database — see Section 11):
+   - **Endpoint:** `POST /api/v3/did/registDIDDocument`
    - **Authentication:** API Key header (`X-API-Key`) required
    - **Request Body:**
      ```json
@@ -127,7 +125,7 @@ The Go client library can be used to create DIDs:
 
 ```go
 // Create DID
-didBase64, err := did.CreateDid(keytype)  // keytype: "P256", "P384", etc.
+didBase64, err := did.CreateDid(keytype)  // keytype: "P256" (currently supported curve)
 
 // Create DID Document
 docBase64, err := did.CreateDidDocument(didBase64, nameBase64, descBase64)
@@ -145,9 +143,10 @@ This operation resolves a DID to retrieve its DID document.
    - Searches for DIDs across all consumers
 3. Processing:
    - Remove the `did:finger:` prefix from the DID to extract the method-specific identifier
-   - Search the database for a DID document with that identifier in Active status
-   - If found, return it in W3C DID Resolution Result format
-   - If not found or revoked, return a `404 notFound` error
+   - Look up the CID anchored on-chain for that identifier and fetch the corresponding DID document from IPFS (see Section 11)
+   - Cross-check the DID's status (Active/Revoked) against the operator database
+   - If found and Active, return it in W3C DID Resolution Result format
+   - If not found, revoked, or no CID is anchored, return a `404 notFound` error
 4. Response Format:
    ```json
    {
@@ -157,14 +156,17 @@ This operation resolves a DID to retrieve its DID document.
        "driver": "f-did-go",
        "driverVersion": "1.0.0"
      },
-     "didDocumentMetadata": {}
+     "didDocumentMetadata": {
+       "versionId": "<IPFS CID>",
+       "cid": "<IPFS CID>"
+     }
    }
    ```
 
 **Authenticated Query Endpoints:**
 
-1. Query by User ID: `GET /api/v2/did/getDIDDocumentByID?userID=<user-id>`
-2. Query by DID ID: `GET /api/v2/did/getDIDDocumentByDIDID?userDIDID=<base64-encoded-did>`
+1. Query by User ID: `GET /api/v3/did/getDIDDocumentByID?userID=<user-id>`
+2. Query by DID ID: `GET /api/v3/did/getDIDDocumentByDIDID?userDIDID=<base64-encoded-did>`
 3. API Key authentication required (`X-API-Key` header)
 4. Only queries DID documents for a specific consumer
 
@@ -177,10 +179,10 @@ This operation updates an existing DID document.
 1. Prepare the DID document to update:
    - Must use the same `id` field as the existing DID
    - Include updated content (verificationMethod, service, etc.)
-2. Sign the DID document with the private key of the DID that created it
+2. Canonicalize the document (excluding `proof`) using JCS and sign it with the private key of the DID that created it, producing a new `DataIntegrityProof` (`ecdsa-jcs-2019`)
 3. Encode the signed DID document in Base64
 4. Update using the registration API:
-   - **Endpoint:** `POST /api/v2/did/registDIDDocument` (same endpoint as Create)
+   - **Endpoint:** `POST /api/v3/did/registDIDDocument` (same endpoint as Create)
    - **Authentication:** API Key header required
    - The system automatically finds the existing DID document, changes it to `Revoked` status, and stores the new document with `Active` status
 
@@ -190,8 +192,8 @@ This operation updates an existing DID document.
 - The `id` field of the DID cannot be changed
 - **Authentication Requirements:**
   - Both API Key authentication and DID signature verification are required
-  - The signature in the DID Document's `proof` field must verify against a key in the current Active DID Document's `authentication` array
-  - For signature verification, `authentication[0]` (first authentication method) is used as the default verification key
+  - The `proof.verificationMethod` in the DID Document must reference a key present in the current Active DID Document's `verificationMethod` array (and referenced by `authentication`/`assertionMethod`)
+  - The `publicKeyJwk` of the referenced `verificationMethod` entry is used to verify the `DataIntegrityProof`
 
 ### Deactivate
 
@@ -201,7 +203,7 @@ This operation revokes a DID document so it can no longer be used.
 
 1. Identify the DID ID to revoke
 2. Call the revocation API:
-   - **Endpoint:** `POST /api/v2/did/revokeDIDDocument`
+   - **Endpoint:** `POST /api/v3/did/revokeDIDDocument`
    - **Authentication:** API Key header required
    - **Request Body:**
      ```json
@@ -225,54 +227,53 @@ The finger DID method conforms to the W3C DID Core specification and has the fol
 
 ```json
 {
-  "@context": ["https://www.w3.org/ns/did/v1"],
+  "@context": [
+    "https://www.w3.org/ns/did/v1.1",
+    "https://www.w3.org/ns/cid/v1",
+    "https://w3id.org/security/data-integrity/v2"
+  ],
   "id": "did:finger:<method-specific-identifier>",
-  "name": "<optional-name>",
-  "desc": "<optional-description>",
   "verificationMethod": [
     {
-      "id": "did:finger:<method-specific-identifier>",
-      "type": "<verification-key-type>",
-      "publicKeyBase58": "<base58-encoded-public-key>"
+      "id": "did:finger:<method-specific-identifier>#key-1",
+      "type": "JsonWebKey",
+      "controller": "did:finger:<method-specific-identifier>",
+      "publicKeyJwk": {
+        "kty": "EC",
+        "crv": "P-256",
+        "x": "<base64url-encoded-x-coordinate>",
+        "y": "<base64url-encoded-y-coordinate>"
+      }
     }
   ],
   "authentication": [
-    {
-      "id": "did:finger:<method-specific-identifier>",
-      "type": "<verification-key-type>",
-      "publicKeyBase58": "<base58-encoded-public-key>"
-    }
+    "did:finger:<method-specific-identifier>#key-1"
   ],
-  "service": {
-    "id": "did:finger:<method-specific-identifier>#service",
-    "type": "SmartContractService",
-    "serviceEndpoint": {
-      "chain": "<blockchain-name>",
-      "contractAddress": "<contract-address>",
-      "rpcUrl": "<rpc-url>",
-      "abi": "<contract-abi>"
-    }
-  },
+  "assertionMethod": [
+    "did:finger:<method-specific-identifier>#key-1"
+  ],
   "proof": {
-    "type": "<verification-key-type>",
-    "creator": "did:finger:<method-specific-identifier>",
-    "created": "<iso8601-timestamp-rfc3339nano>",
-    "nonce": "<hex-encoded-32-char-nonce>",
-    "signatureValue": "<base64-url-safe-encoded-signature>"
+    "type": "DataIntegrityProof",
+    "cryptosuite": "ecdsa-jcs-2019",
+    "created": "<rfc3339-utc-timestamp>",
+    "verificationMethod": "did:finger:<method-specific-identifier>#key-1",
+    "proofPurpose": "assertionMethod",
+    "proofValue": "z<multibase-base58btc-encoded-signature>"
   }
 }
 ```
 
+**Note:** A `service` property (optional, e.g., for blockchain smart-contract endpoints, see Section 12) MAY additionally be included; this is non-normative.
+
 ## 7. Supported Cryptographic Algorithms
 
-The finger DID method supports the following cryptographic algorithms:
+The finger DID method's DID Documents currently use:
 
-- **ECDSA P-256** (`EcdsaP256VerificationKey2019`)
-- **ECDSA P-384** (`EcdsaP384VerificationKey2019`)
-- **ECDSA P-521** (`EcdsaP521VerificationKey2019`)
-- **ECDSA secp256k1** (`EcdsaSecp256k1VerificationKey2019`)
-- **RSA 2048** (`RsaVerificationKey2018`)
-- **RSA 4096** (`RsaVerificationKey2018`)
+- **Verification method type:** `JsonWebKey`, with key material carried in `publicKeyJwk`
+- **Currently supported curve:** EC P-256 (JWK `kty`: `EC`, `crv`: `P-256`)
+- **Proof:** `DataIntegrityProof` with cryptosuite `ecdsa-jcs-2019` (ECDSA over P-256, JCS/RFC 8785 canonicalization)
+
+Support for additional curves or key types may be added in the future; this is non-normative.
 
 ## 8. DID Resolution
 
@@ -286,7 +287,7 @@ GET /1.0/identifiers/{did}
 
 **Example:**
 ```
-GET /1.0/identifiers/did:finger:ZDNlNGJkZDktYWRhYy00YTgzLWJhMzctMGY2N2Y2OTQ2ZmQy
+GET /1.0/identifiers/did:finger:NTU1NGUwN2QtNjEyOC00ODA0LWExNWYtOTlhNGQ1NTc5NDc5
 ```
 
 ### Response Format
@@ -296,7 +297,11 @@ On success, responds in W3C DID Resolution Result format:
 ```json
 {
   "didDocument": {
-    "@context": ["https://www.w3.org/ns/did/v1"],
+    "@context": [
+      "https://www.w3.org/ns/did/v1.1",
+      "https://www.w3.org/ns/cid/v1",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
     "id": "did:finger:...",
     ...
   },
@@ -305,7 +310,10 @@ On success, responds in W3C DID Resolution Result format:
     "driver": "f-did-go",
     "driverVersion": "1.0.0"
   },
-  "didDocumentMetadata": {}
+  "didDocumentMetadata": {
+    "versionId": "<IPFS CID>",
+    "cid": "<IPFS CID>"
+  }
 }
 ```
 
@@ -321,60 +329,68 @@ Errors are returned in the following cases:
 
 The returned DID Document conforms to DID Core:
 
-- **@context:** Always the first element (`https://www.w3.org/ns/did/v1`)
+- **@context:** A three-element array (`https://www.w3.org/ns/did/v1.1`, `https://www.w3.org/ns/cid/v1`, `https://w3id.org/security/data-integrity/v2`)
 - **id:** The resolved DID
-- **verificationMethod:** Supported public keys (e.g., `EcdsaP256VerificationKey2019`)
-- **authentication:** References to keys used for authentication
+- **verificationMethod:** Supported public keys, using the `JsonWebKey` type with key material in `publicKeyJwk` (EC P-256)
+- **authentication:** String references (e.g., `#key-1`) to keys used for authentication
+- **assertionMethod:** String references to keys used for issuing assertions (currently the same key as `authentication`)
 - **service:** Service endpoints (optional)
-- **proof:** Signature of the DID document (optional)
+- **proof:** `DataIntegrityProof` (cryptosuite `ecdsa-jcs-2019`) signature of the DID document
 
 ## 10. DID Document Management
 
-The finger DID method provides functionality for registering, querying, and revoking DID documents. All management operations are protected through API Key-based authentication, and DID documents are stored and managed in a database.
+The finger DID method provides functionality for registering, querying, and revoking DID documents. All management operations are protected through API Key-based authentication. DID documents are stored on IPFS with their content identifiers (CIDs) anchored on-chain, alongside operator-managed database records used for issuance and status tracking (see Section 11).
 
 ## 11. Verifiable Data Registry (VDR) and Trust Model
 
 ### VDR Architecture
 
-The finger DID method uses a centralized Verifiable Data Registry (VDR, database) managed by the F-DID service operator. The VDR stores DID documents and manages their lifecycle (Active/Revoked states). This specification is defined on the premise of a central DB-based VDR. The design may be extended to other VDRs (e.g., distributed ledger) in the future; this is non-normative.
+The finger DID method uses a hybrid Verifiable Data Registry (VDR) operated by the F-DID service operator, combining three layers:
+
+- **IPFS (document storage):** The full DID document is stored on IPFS, which produces a content identifier (CID), a cryptographic hash of the document's content.
+- **On-chain anchor (integrity/registry):** The CID is anchored on an Ethereum-compatible smart contract (`didRegistry.setCid(keccak256(did), cid)`), providing a tamper-evident, publicly auditable record of which CID is currently associated with a given DID.
+- **Operator database:** The F-DID service operator additionally maintains a database for the issuance workflow, consumer/API-Key management, and Active/Revoked status tracking.
+
+This specification is defined on the premise of this chain-anchored, IPFS-backed hybrid VDR. The design may be extended to other registries (e.g., other distributed ledgers) in the future; this is non-normative.
 
 **Resolution Model:**
 - DID resolution is performed through a public HTTP endpoint (`GET /1.0/identifiers/{did}`)
-- The resolver queries the VDR database maintained by the F-DID service operator
+- The resolver reads the CID anchored on-chain for the DID (`didRegistry.getCid(keccak256(did))`), fetches the corresponding DID document from IPFS, and cross-checks Active/Revoked status against the operator database
 - All Active DID documents are publicly resolvable without authentication
 
 **Trust Model:**
-- **Availability Dependency:** DID resolution depends on the availability and operational integrity of the F-DID service operator's infrastructure
-- **Integrity Protection:** While the VDR is centralized, DID document integrity is protected through cryptographic signatures in the `proof` field
+- **Availability Dependency:** DID resolution depends on the availability and operational integrity of the F-DID service operator's infrastructure (blockchain node, IPFS node/pinning service, and database)
+- **Integrity Protection:** Even though the operator's database is centralized, DID document integrity is doubly protected: the on-chain CID anchor detects any substitution of the IPFS-stored document, and the cryptographic signature in the `proof` field independently verifies the document's authenticity
 - **Trust Assumptions:** 
   - Clients must trust the F-DID service operator to:
-    - Maintain database availability
+    - Maintain blockchain, IPFS, and database availability
     - Return accurate DID documents for Active DIDs
     - Not arbitrarily revoke or modify DID documents without proper authorization
-  - DID document authenticity is independently verifiable through cryptographic signature verification, regardless of VDR operator actions
+  - DID document authenticity is independently verifiable through cryptographic signature verification and CID/content matching, regardless of VDR operator actions
 
 **Mitigation Strategies:**
 - **Cryptographic Verification:** All DID documents include cryptographic signatures that can be verified independently of the VDR
+- **Content-Addressed Integrity:** Because IPFS content is addressed by its CID, and the CID is anchored on-chain, any tampering with the stored document content is detectable by recomputing and comparing the CID
 - **Audit Logging:** State changes (Create/Update/Deactivate) are logged for audit purposes
 - **Signature-Based Authorization:** Updates and deactivations require valid cryptographic signatures from DID controllers, preventing arbitrary modifications by the VDR operator
 
 **Residual Risks:**
-- **Service Availability:** DID resolution may be unavailable if the F-DID service is offline
+- **Service Availability:** DID resolution may be unavailable if the blockchain node, IPFS node, or F-DID service is offline
 - **Operator Compromise:** If the VDR operator is compromised, they could:
   - Deny resolution (DoS)
-  - Return incorrect or stale data (detectable through signature verification)
-  - However, they cannot forge valid signatures without controller private keys
-- **Database Breach:** A database breach could expose DID document contents, but would not allow unauthorized updates without controller private keys
+  - Return incorrect or stale data (detectable through CID mismatch or signature verification)
+  - However, they cannot forge valid signatures without controller private keys, nor rewrite the on-chain CID anchor without the registry contract's authorized signer key
+- **Database Breach:** A database breach could expose status/metadata, but would not allow unauthorized updates without controller private keys and authorized on-chain write access
 
 **Operational Considerations:**
-- The F-DID service operator maintains high availability infrastructure
+- The F-DID service operator maintains high availability infrastructure for the blockchain node, IPFS node/pinning, and database
 - Database backups and disaster recovery procedures are maintained
 - API Key management follows security best practices
 - Service status and maintenance windows are communicated to users
 
 ## 12. Blockchain Integration
 
-The finger DID method can optionally integrate with blockchains for additional verification and registry capabilities.
+Blockchain integration is part of the finger DID method's core VDR architecture (see Section 11): the CID of each DID document stored on IPFS is anchored on an Ethereum-compatible smart contract (`didRegistry.setCid(keccak256(did), cid)`), providing a tamper-evident, publicly verifiable record of the document's current state. This is distinct from the optional `service`-endpoint based smart-contract integration described in Section 2/6, which lets a DID subject reference its own external smart contracts (e.g., for STO/NFT services).
 
 ## 13. Governance
 
@@ -398,7 +414,7 @@ The finger DID method can optionally integrate with blockchains for additional v
 
 **Public Key Exposure:**
 
-- Public keys are stored in the `verificationMethod` field of DID Documents in Base58-encoded format
+- Public keys are stored in the `verificationMethod` field of DID Documents as a JWK (`publicKeyJwk`, EC P-256)
 - Public keys are public information and can be queried by anyone
 - Public keys are used for signature verification and cannot be used to generate signatures without the private key
 
@@ -414,28 +430,24 @@ The finger DID method can optionally integrate with blockchains for additional v
 
 - All DID documents are signed with the private key of the DID that created them
 - **Canonicalization and Serialization:**
-  - The DID document (excluding the `proof` field) is serialized to JSON using Go's standard `json.Marshal` function
-  - The resulting JSON bytes are used as the input for cryptographic signing
-  - Note: Go's `json.Marshal` produces deterministic output for the same input structure, but implementers should be aware that field ordering may vary between implementations
+  - The DID document (excluding the `proof` field) is canonicalized using JCS (JSON Canonicalization Scheme, RFC 8785)
+  - The resulting canonical bytes are used as the input for cryptographic signing
+  - Note: JCS produces a single deterministic byte-serialization for a given JSON value (fixed key ordering, fixed number formatting), which removes the field-ordering ambiguity of ad-hoc JSON serialization
 - **Proof Structure:**
-  - Signatures include the following information:
-    - `creator`: The DID that created the signature
-    - `created`: Signature creation time (ISO8601 format, RFC3339Nano)
-    - `type`: The verification method type (matches verificationMethod)
-    - `nonce`: Random hexadecimal string (32 hex characters, 16 bytes) to prevent replay attacks
-    - `signatureValue`: Base64 URL-safe encoded signature value (base64.URLEncoding)
+  - The `proof` (`DataIntegrityProof`) includes the following information:
+    - `type`: Always `DataIntegrityProof`
+    - `cryptosuite`: `ecdsa-jcs-2019`
+    - `verificationMethod`: The DID URL (with fragment, e.g., `#key-1`) of the key that created the signature
+    - `created`: Signature creation time (RFC3339, UTC)
+    - `proofPurpose`: `assertionMethod`
+    - `proofValue`: Multibase (base58btc, `z`-prefixed) encoded signature value
 - **Signature Process:**
   1. Create DID document structure without `proof` field
-  2. Serialize to JSON bytes using `json.Marshal`
-  3. Sign the JSON bytes using the private key
-  4. Create proof object with signature and metadata
+  2. Canonicalize the document using JCS (RFC 8785)
+  3. Sign the canonical bytes using the private key (ECDSA P-256)
+  4. Create proof object (`DataIntegrityProof`) with `proofValue` and metadata
   5. Add proof to the DID document
-- Signature algorithms must match the type specified in verificationMethod:
-  - ECDSA P-256: Uses SHA-256 hash
-  - ECDSA P-384: Uses SHA-384 hash
-  - ECDSA P-521: Uses SHA-512 hash
-  - Secp256k1: Uses SHA-256 hash
-  - RSA: Uses SHA-256 hash and PKCS1v15 padding
+- The signature algorithm is determined by the proof's `cryptosuite`; the currently supported cryptosuite is `ecdsa-jcs-2019` (ECDSA over the P-256 curve, SHA-256 hash, JCS-canonicalized input). Support for additional cryptosuites/curves may be added in the future; this is non-normative.
 
 **Signature Verification:**
 
@@ -443,13 +455,12 @@ The finger DID method can optionally integrate with blockchains for additional v
 - **Verification Process:**
   1. Extract the `proof` field from the DID document
   2. Create a copy of the DID document without the `proof` field
-  3. Serialize the proof-free document to JSON bytes using the same method as signing (Go's `json.Marshal`)
-  4. Extract the public key from the `authentication[0].PublicKeyBase58` field (first authentication method)
-  5. Decode the `signatureValue` from Base64 URL-safe encoding
-  6. Verify the signature using the public key and the serialized JSON bytes
+  3. Canonicalize the proof-free document using the same method as signing (JCS, RFC 8785)
+  4. Resolve the key referenced by `proof.verificationMethod` (e.g., `#key-1`) in the DID Document's `verificationMethod` array, and extract its `publicKeyJwk` (EC P-256)
+  5. Decode the `proofValue` from multibase (base58btc, `z`-prefixed) encoding
+  6. Verify the signature using the public key and the canonicalized bytes
 - DID documents are considered invalid if signature verification fails
-- The `nonce` field in proof can be used by implementers for replay attack prevention (storage and validation of nonces is implementation-specific)
-- Signature verification is performed using the DID's public key from the `authentication` field
+- Signature verification is performed using the public key (`publicKeyJwk`) of the `verificationMethod` entry referenced by `proof.verificationMethod`
 
 **Forgery Prevention:**
 
@@ -486,8 +497,8 @@ The finger DID method can optionally integrate with blockchains for additional v
   - The API Key controls **which consumer** can submit operations, while the DID signature proves **who controls the DID**
   - Both must be valid for the operation to succeed
 - **Verification Key Selection:**
-  - For signature verification, the first key in the `authentication` array (`authentication[0]`) is used
-  - When multiple authentication keys exist, the controller is responsible for ensuring the signing key matches one of the keys in the `authentication` array
+  - For signature verification, the key referenced by `proof.verificationMethod` (e.g., `#key-1`) is used
+  - When multiple keys exist, the controller is responsible for ensuring the signing key is present in the `verificationMethod` array and referenced by `authentication`/`assertionMethod` as appropriate
 - If an API Key is compromised, it must be immediately revoked and a new key issued
 
 **Public Resolution API:**
@@ -541,8 +552,7 @@ The finger DID method can optionally integrate with blockchains for additional v
 **Encryption Strength:**
 
 - Supported cryptographic algorithms follow industry standards:
-  - ECDSA: Uses P-256, P-384, P-521 curves
-  - RSA: Uses key lengths of 2048 bits or more
+  - ECDSA: Uses the P-256 curve (see Section 7 for the currently supported cryptosuite)
 - Weak cryptographic algorithms are not used
 
 ### Additional Security Recommendations
@@ -573,9 +583,9 @@ A DID Resolver for the `did:finger` method can be implemented in any programming
 **1. DID Format Validation:**
 
 Validate that the DID follows the format `did:finger:<method-specific-identifier>` where:
-- The method-specific identifier is a Base64-encoded UUID string
-- Character set: A-Z, a-z, 0-9, +, /, =
-- Length: approximately 44-48 characters
+- The method-specific identifier is a Base64url-encoded (RFC 4648 §5, no padding) UUID string
+- Character set: A-Z, a-z, 0-9, -, _
+- Length: approximately 48 characters
 
 **2. Resolution Process:**
 
@@ -592,7 +602,10 @@ Implement the resolution process:
        "driver": "f-did-go",
        "driverVersion": "1.0.0"
      },
-     "didDocumentMetadata": {}
+     "didDocumentMetadata": {
+       "versionId": "<IPFS CID>",
+       "cid": "<IPFS CID>"
+     }
    }
    ```
 4. Handle error responses:
@@ -617,24 +630,24 @@ Implement the resolution process:
 - **Authentication:** None required (public endpoint)
 - **Example:**
   ```bash
-  curl "https://your-server.com/1.0/identifiers/did:finger:ZDNlNGJkZDktYWRhYy00YTgzLWJhMzctMGY2N2Y2OTQ2ZmQy"
+  curl "https://your-server.com/1.0/identifiers/did:finger:NTU1NGUwN2QtNjEyOC00ODA0LWExNWYtOTlhNGQ1NTc5NDc5"
   ```
 
 **Management Endpoints (API Key Authentication Required):**
 
 These endpoints require API Key authentication and are used for DID document management:
 
-- **Register/Update:** `POST /api/v2/did/registDIDDocument`
+- **Register/Update:** `POST /api/v3/did/registDIDDocument`
   - Header: `X-API-Key: <your-api-key>`
   - Body: JSON with `userId`, `userDIDID`, `didDocument`
   
-- **Get by User ID:** `GET /api/v2/did/getDIDDocumentByID?userID=<user-id>`
+- **Get by User ID:** `GET /api/v3/did/getDIDDocumentByID?userID=<user-id>`
   - Header: `X-API-Key: <your-api-key>`
   
-- **Get by DID ID:** `GET /api/v2/did/getDIDDocumentByDIDID?userDIDID=<base64-encoded-did>`
+- **Get by DID ID:** `GET /api/v3/did/getDIDDocumentByDIDID?userDIDID=<base64-encoded-did>`
   - Header: `X-API-Key: <your-api-key>`
   
-- **Revoke:** `POST /api/v2/did/revokeDIDDocument`
+- **Revoke:** `POST /api/v3/did/revokeDIDDocument`
   - Header: `X-API-Key: <your-api-key>`
   - Body: JSON with `userDIDID`
 
@@ -644,9 +657,9 @@ These endpoints require API Key authentication and are used for DID document man
 
 **DID Generation Algorithm:**
 
-1. Generate a UUID v4 (e.g., `3d3e4bdd-9adac-04a83-ba37-0f67f69462fd2`)
+1. Generate a UUID v4 (e.g., `5554e07d-6128-4804-a15f-99a4d5579479`)
 2. Convert the UUID string to a byte array
-3. Encode using Base64 standard encoding (StdEncoding)
+3. Encode using Base64url encoding without padding (`base64.RawURLEncoding`, RFC 4648 §5)
 4. Prepend `did:finger:` to create the full DID
 
 **Example Implementation (Go):**
@@ -662,15 +675,15 @@ import (
 
 func GenerateFingerDID() (string, error) {
     // Generate UUID v4
-    uuidObj, err := uuid.NewUUID()
+    uuidObj, err := uuid.NewRandom()
     if err != nil {
         return "", err
     }
     uuidStr := uuidObj.String()
     
-    // Convert to bytes and Base64 encode
+    // Convert to bytes and Base64url encode (no padding)
     uuidBytes := []byte(uuidStr)
-    methodSpecificId := base64.StdEncoding.EncodeToString(uuidBytes)
+    methodSpecificId := base64.RawURLEncoding.EncodeToString(uuidBytes)
     
     // Create DID
     did := fmt.Sprintf("did:finger:%s", methodSpecificId)
@@ -684,38 +697,51 @@ When creating or updating DID documents, ensure they conform to the following st
 
 ```json
 {
-  "@context": ["https://www.w3.org/ns/did/v1"],
+  "@context": [
+    "https://www.w3.org/ns/did/v1.1",
+    "https://www.w3.org/ns/cid/v1",
+    "https://w3id.org/security/data-integrity/v2"
+  ],
   "id": "did:finger:<method-specific-identifier>",
   "verificationMethod": [
     {
-      "id": "did:finger:<method-specific-identifier>",
-      "type": "EcdsaP256VerificationKey2019",
-      "publicKeyBase58": "<base58-encoded-public-key>"
+      "id": "did:finger:<method-specific-identifier>#key-1",
+      "type": "JsonWebKey",
+      "controller": "did:finger:<method-specific-identifier>",
+      "publicKeyJwk": {
+        "kty": "EC",
+        "crv": "P-256",
+        "x": "<base64url-encoded-x-coordinate>",
+        "y": "<base64url-encoded-y-coordinate>"
+      }
     }
   ],
   "authentication": [
-    "did:finger:<method-specific-identifier>"
+    "did:finger:<method-specific-identifier>#key-1"
+  ],
+  "assertionMethod": [
+    "did:finger:<method-specific-identifier>#key-1"
   ],
   "proof": {
-    "type": "EcdsaP256VerificationKey2019",
-    "creator": "did:finger:<method-specific-identifier>",
-    "created": "<iso8601-timestamp>",
-    "nonce": "<random-nonce>",
-    "signatureValue": "<base64-encoded-signature>"
+    "type": "DataIntegrityProof",
+    "cryptosuite": "ecdsa-jcs-2019",
+    "created": "<rfc3339-utc-timestamp>",
+    "verificationMethod": "did:finger:<method-specific-identifier>#key-1",
+    "proofPurpose": "assertionMethod",
+    "proofValue": "z<multibase-base58btc-encoded-signature>"
   }
 }
 ```
 
 ### Supported Cryptographic Algorithms
 
-When implementing signature verification, support the following algorithms:
+When implementing signature verification, support:
 
-- **ECDSA P-256** with SHA-256 (`EcdsaP256VerificationKey2019`)
-- **ECDSA P-384** with SHA-384 (`EcdsaP384VerificationKey2019`)
-- **ECDSA P-521** with SHA-512 (`EcdsaP521VerificationKey2019`)
-- **ECDSA secp256k1** with SHA-256 (`EcdsaSecp256k1VerificationKey2019`)
-- **RSA 2048** with SHA-256 (`RsaVerificationKey2018`)
-- **RSA 4096** with SHA-256 (`RsaVerificationKey2018`)
+- **Verification method type:** `JsonWebKey` with `publicKeyJwk`
+- **Currently supported curve:** EC P-256
+- **Proof cryptosuite:** `ecdsa-jcs-2019` (ECDSA over P-256, JCS/RFC 8785 canonicalized input, SHA-256 hash)
+
+Support for additional cryptosuites/curves may be added in the future; this is non-normative.
 
 ### Universal Resolver Integration
 
@@ -801,31 +827,26 @@ Finger Co., Ltd. is a B2C fintech company in Korea. This DID method specificatio
 
 ## 19. Test Vectors
 
-The following are examples of valid `did:finger` DIDs:
+The following are examples of valid `did:finger` DIDs, currently resolvable on the reference resolver (e.g., `https://did-dev.fingerservice.co.kr:5070/1.0/identifiers/<did>`):
 
 **Example 1:**
 ```
-did:finger:ZDNlNGJkZDktYWRhYy00YTgzLWJhMzctMGY2N2Y2OTQ2ZmQy
+did:finger:NTU1NGUwN2QtNjEyOC00ODA0LWExNWYtOTlhNGQ1NTc5NDc5
 ```
 
 **Example 2:**
 ```
-did:finger:YmMzMWNjMTEtYWYwYS00ZGY2LWJiNzUtOGNkMTk2MTBjMTA0
-```
-
-**Example 3:**
-```
-did:finger:OTliNWZjNmItYjcxOC00YzNkLWE4NGUtNTA4MDlmNzljM2Y1
+did:finger:MWY0YzgyMjQtMzNkYy00ZjY5LTg3NDgtZWQ3NWM3Mzc4ZjJm
 ```
 
 Each DID should resolve to a valid DID Document.
 
 ## 20. W3C Registration
 
-This method is being prepared for registration in the W3C DID Method Registry.
+This method is registered in the W3C DID Method Registry (method name `finger`).
 
-**Status:** Registration Pending
+**Status:** Registered
 
 ## 21. Status
 
-This DID method is currently **under development** and being prepared for registration in the W3C DID Extensions registry.
+This DID method is currently **operational** and registered in the W3C DID Extensions registry.
